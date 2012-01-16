@@ -20,6 +20,7 @@ function mcmp
     fi
 }
 
+#usage: skmgtp "$num" "$unit"
 #unit convert
 #sector,k,m,g,t,p
 #skmgtp xxm s
@@ -38,12 +39,27 @@ function skmgtp
     local p=*1024$t
     local P=$p
 
+    #参数不够或者$1为空都返回空
+    if [ $# -lt 2 ];then
+        echo -n ""
+        return 1
+    fi
+    if [ -z "$1" ];then
+        echo -n ""
+        return 2
+    fi
+    #just a unit/a digit
+    if [ `expr length $1` -eq 1 ];then
+        echo -n ""
+        return 3
+    fi
     local num=$1
     local unit=$2
     local result=0
-    local expr0=$(echo "$num/1${unit}"|sed -n 's/\([sSkKmMgGtTpP]\)/$\1/g;p')
-    local expr1=$(eval echo -n $expr0)
+    local expr0=$(echo -n "\($num\)/\(1${unit}\)"|sed -n 's/\([sSkKmMgGtTpP]\)/$\1/g;p')
+    local expr1=$(eval echo -n "$expr0")
     result=$(echo "${expr1}"|bc)
 
     echo -n $result
+    return 0
 }
