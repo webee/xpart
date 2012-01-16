@@ -9,7 +9,7 @@ function get_detail_info
 {
     local disk=$1
     local unit=$2
-    parted $disk unit $unit print 2>/dev/null
+    parted $disk unit $unit print
     if [ $? != 0 ]; then
 	fdisk $disk -l
     fi

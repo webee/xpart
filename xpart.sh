@@ -1,4 +1,14 @@
 #!/bin/bash
+
+#check permission
+#must be root
+if [ "`whoami`" != "root" ];then
+    #error
+    echo "you must be root to run this script."
+    exit 1
+fi
+
+#import the lib.
 . ./partlib.sh
 
 #default
@@ -128,7 +138,7 @@ if [ -z "$disk" ]; then
     disk=$1
 fi
 
-if [ -n "$disk" ]; then
+if [ -e "$disk" ]; then
     #get the partions
     sectors=`parted $disk unit s p|sed -n '2{s/.* \([0-9]\+\)s/\1/;p}'`
     partitions=(`parted $disk unit s p|grep '^ [0-9]\+'|sed 's/\([0-9]\+\)s/\1/g'|sort -k2n|awk '{printf("%s %s %s %s %s ", $1,$2,$3,$4,$5)}'`)
