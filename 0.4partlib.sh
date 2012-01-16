@@ -87,7 +87,7 @@ local istart=0
 local iend=0
 
 local disk=$1
-local ptype0=$2
+local ptype=$2
 local pstart0=${3:-$start}
 local pend0=${4:-$end}
 local psize0=$5
@@ -103,8 +103,8 @@ local lspace=()
 pspace[0]=`expr $start + $mbr_sectors`
 for ((i=0;i<$total;i++));do
     if [ ${partitions[$[$i*5+4]]} = "primary" ] || [ ${partitions[$[$i*5+4]]} = "extended" ]; then
-	pspace[${#pspace[@]}]=${partitions[$[$i*5+1]]}
-	pspace[${#pspace[@]}]=`expr ${partitions[$[$i*5+2]]} + 1`
+	pspace[$[$i*2+1]]=${partitions[$[$i*5+1]]}
+	pspace[$[$i*2+2]]=`expr ${partitions[$[$i*5+2]]} + 1`
     fi
 done
 pspace[${#pspace[@]}]=`expr $end + 1`
@@ -119,19 +119,17 @@ done
 lspace[0]=$estart
 for ((i=0;i<$total;i++));do
     if [ ${partitions[$[$i*5+4]]} = "logical" ]; then
-	lspace[${#lspace[@]}]=${partitions[$[$i*5+1]]}
-	lspace[${#lspace[@]}]=`expr ${partitions[$[$i*5+2]]} + 1`
+	lspace[$[$i*2+1]]=${partitions[$[$i*5+1]]}
+	lspace[$[$i*2+2]]=`expr ${partitions[$[$i*5+2]]} + 1`
     fi
 done
-lspace[${#lspace[@]}]=`expr $eend + 1`
+lspace[${#lspace[@]}]=`expr $eend + 1 + 1`
 
-local ptype=${ptype0}
 local pstart=${pstart0}
 local pend=${pend0}
 local psize=${psize0}
 	
 #size first.
-#if specify size, whatever start.end.,meet size.
 if [ x${psize0} != x ];then
     #get sectors
     psize0=$(skmgtp $psize0 s)
@@ -162,46 +160,23 @@ if [ x${psize0} != x ];then
 
     #any type.
     if [ $ptype = a ];then
-	if [ $extended_nums -lt 1 ] && [ $primary_nums -ge 4 ];then
-	    #error
-	    echo "no more primaries, and no extended to create a logial"
-	    exit 1
-	else
-	    if [ $pmaxspace -gt $lmaxspace ] && [ $primary_nums -lt 4 ];then
+	#pmax>lmax
+	if [ $pmaxspace -gt `expr $lmaxspace - $mbr_sectors - $boot_sectors` ] && [ $primary_nums -lt 4 ];then
 		ptype=p
-	    elif [ $pmaxspace -gt $lmaxspace ] && [ $primary_nums -ge 4 ];then
-		ptype=l
-	    elif [ $pmaxspace -le $lmaxspace ];then
-		if [ $extended_nums -ge 1 ];then
-		    ptype=l;
+	else
+	    #pmax<lmax
+	    if [ $primary_nums -lt 4 ];then
+		if [ $extended_nums -gt 0 ];then
+		    ptype=l
 		else
-		    ptype=p;
+		    ptype=p
 		fi
+	    else
+		#error
+		echo "already 4 primaries. can't create any partition."
+		exit 1
 	    fi
 	fi
-##	if [ $pmaxspace -gt $lmaxspace ] && [ $primary_nums -lt 4 ];then
-##	    ptype=p
-##	elif [ $pmaxspace -gt $lmaxspace ] && [ $primary_nums -ge 4 ];then
-##	    if [ $extended_nums -ge 1 ];then
-##		ptype=l
-##	    else
-##		#error
-##		echo "no more primaries, and no extended to create a logial"
-##		exit 1
-##	    fi
-##	elif [ $pmaxspace -le $lmaxspace ];then
-##	    if [ $extended_nums -ge 1 ];then
-##		ptype=l
-##	    else
-##		if [ $primary_nums -lt 4 ];then
-##		    ptype=p
-##		else
-##		    #error
-##		    echo "no more primaries, and no extended to create a logial"
-##		    exit 1
-##		fi
-##	    fi
-##	fi
     fi
     #add a new logical partition.
     if [ $ptype = l ];then
@@ -211,39 +186,40 @@ if [ x${psize0} != x ];then
 	    echo "you must create a extended first."
 	    exit 1
 	fi
-	maxspace=$lmaxspace
-	maxstart=$lmaxstart
+	if [ $lmaxspace -gt 0 ];then
+	    pstart=$lmaxstart
+	    if [ $lmaxspace -lt $psize ];then
+		psize=$lmaxspace
+	    fi
+	    pend=`expr $pstart + $psize - 1`
+	else
+	    #error
+	    echo "not enough space."
+	    exit 1
+	fi
     #add a new primary or extended partition.
     elif [ $ptype = p ] || [ $ptype = e ];then
 	#check numbs.
 	primarycheck4 $primary_nums $extended_nums $ptype
-	maxspace=$pmaxspace
-	maxstart=$pmaxstart
-    fi
-
-    if [ $maxspace -gt 0 ];then
-	pstart=$maxstart
-	if [ $maxspace -lt $psize ];then
-	    psize=$maxspace
+	if [ $pmaxspace -gt 0 ];then
+	    pstart=$pmaxstart
+	    if [ $pmaxspace -lt $psize ];then
+		psize=$pmaxspace
+	    fi
+	    pend=`expr $pstart + $psize - 1`
+	else
+	    #error
+	    echo "not enough space."
+	    exit 1
 	fi
-	pend=`expr $pstart + $psize - 1`
-    else
-	#error
-	echo "not enough space."
-	exit 1
     fi
 #then strart.end.
 else
-    #not specify type.
+    #new logical partition.
     if [ $ptype = a ];then
-	if [ $extended_nums -lt 1 ];then
-	    ptype=e
-	else
-	    ptype=l
-	fi
+	echo
     fi
 
-    #new logical partition.
     if [ $ptype = l ];then
 	if [ $extended_nums -eq 0 ];then
 	    #error
@@ -262,7 +238,7 @@ else
 	#check other ranges.
 	for ((i=0; i<$total; i++)); do
 	    if [ ${partitions[$[$i*5+4]]} = "logical" ];then
-		istart=`expr ${partitions[$[$i*5+1]]} - $mbr_sectors`
+		istart=`expr ${partitions[$[$i*5+1]]} - $boot_sectors`
 		iend=`expr ${partitions[$[$i*5+2]]} + $mbr_sectors`
 		if [ $pstart -lt $istart ];then
 		    if [ $pend -ge $istart ];then
@@ -275,15 +251,8 @@ else
 		fi
 	    fi
 	done
-    fi
-    #如果没指定type，且分配logical分区不行，则尝试分配主分区
-    if [ $ptype0 = a ] && [ $pstart -gt $pend ];then
-	if [ $primary_nums -lt 4 ];then
-	    ptype=p
-	fi
-    fi
     #new primary or extended  partition.
-    if [ $ptype = p ] || [ $ptype = e ];then
+    elif [ $ptype = p ] || [ $ptype = e ];then
 	#check primary 4 limit.
 	primarycheck4 $primary_nums $extended_nums $ptype
 	istart=$start
@@ -315,7 +284,7 @@ else
 #start.end.
 fi
 
-##检查结果
+##
 if [ $pstart -gt $pend ];then
     #error
     echo "no more space."
@@ -325,10 +294,10 @@ fi
 if [ x$psize != x$psize0 ] || [ $pstart != $pstart0 ] || [ $pend != $pend0 ];then
     if [ $force -ne 1 ];then
 	#error
-	echo "(${pstart0},${pend0},${psize},${ptype0})=>($pstart,$pend,$psize,$ptype)"
+	echo "${pstart0},${pend0}=>$pstart,$pend"
 	echo "range error!"
 	echo "use ./xpart disk -I -us to get more detail."
-	exit 1
+	exit 4
     fi
 fi
 
