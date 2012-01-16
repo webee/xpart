@@ -17,15 +17,40 @@ function get_detail_info
 
 #function
 #disk
-function create_partition_table
+function init_disk
 {
 local disk=$1
 
 fdisk $disk >/dev/null 2>&1 <<END &
 o
+n
+e
+
+
+
 w
 END
 }
+
+#function
+#disk
+function xpart_check
+{
+    local disk=$1
+    #get the partions
+    sectors=`parted $disk unit s p|sed -n '2{s/.* \([0-9]\+\)s/\1/;p}'`
+    partitions=(`parted $disk unit s p|grep '^ [0-9]\+'|sed 's/\([0-9]\+\)s/\1/g'|sort -k2n|awk '{printf("%s %s %s %s %s ", $1,$2,$3,$4,$5)}'`)
+    total=$[${#partitions[@]}/5]
+
+    local expected=(1 $boot_sectors `expr $sectors - 1` `expr $sectors - $boot_sectors` "extended")
+    for ((i=0;i<5;i++));do
+	if [ x${partitions[$i]} != x${expected[$i]} ];then
+	    isXpart=0
+	    break
+	fi
+    done
+}
+
 
 #function
 #disk,pnum
@@ -36,7 +61,7 @@ local pnum=$2
 local valid=0
 
 #check if request partitions exist.
-for (( i=0; i<$total; i++)); do
+for ((i=1; i<$total; i++)); do
     if [ ${partitions[$[$i*5+0]]} -eq $pnum ]; then
 	valid=1
 	break
@@ -58,39 +83,44 @@ END
 #disk,ptype,pnum,pstart,psize
 function new_partition
 {
-local start=0
-local end=`expr $sectors - 1`
+local start=`expr ${partitions[$0*5+1]} + $boot_sectors`
+local end=${partitions[$0*5+1]}
 
 local disk=$1
-local ptype=$2
-local pstart0=${3:-$start}
-local pend0=${4:-$end}
-local psize=$5
-local force=$6
-local verbose=$7
-local primary_nums=`echo ${partitions[@]}|tr ' ' '\n'|awk 'BEGIN{n=0;}($0=="primary"||$0=="extended"){n++;}END{printf("%d",n);}'`
-local extend_nums=`echo ${partitions[@]}|tr ' ' '\n'|awk 'BEGIN{n=0;}($0=="extended"){n++;}END{printf("%d",n);}'`
-primary_nums=${primary_nums:-0}
-extend_nums=${extend_nums:-0}
+local pstart0=${2:-$start}
+local pend0=${3:-$end}
+local psize=$4
+local force=$5
+local verbose=$6
+
+local pstart=${pstart0}
+local pend=${pend0}
+
+local max_space=0
+local max_start=pstart
 
 #size first.
 if [ x$psize != x ];then
     #get sectors
     psize=$(skmgtp $psize s)
-    if [ $ptype = l ];then
-	echo
-    elif [ $ptype = p ] || [ $ptype = e ];then
-	echo
-    fi
+
+    for ((i=1;i<$total;i++));do
+	space=`expr $pstart - ${partitions[$[$i*5+1]]} - $boot_sectors`
+	if [ $(mcmp $space $psize) -ge 2 ];then
+	    pend=`expr $pstart + $psize`
+	    break
+	else
+	    if [ $(mcmp $space $max_space) -eq 3 ];then
+		max_space=$space
+		max_start=$pstart
+	    fi
+	    pstart=`expr ${partitions[$[$i*5+2]]} + $boot_sectors`
+	fi
+    done
+    space=`expr $pstart - $end`
 #then strart.end.
 else
-    local pstart=${pstart0}
-    local pend=${pend0}
-	
-    #don't specify the type
-    if [ x$ptype = x ];then
-    #new logical partition.
-    elif [ $ptype = l ];then
+    if [ $ptype = l ];then
 	if [ $extend_nums -eq 0 ];then
 	    echo "you must create a extended first."
 	    #no extended partition.

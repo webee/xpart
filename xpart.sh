@@ -10,6 +10,7 @@ declare -a partitions
 boot_sectors=2048
 total=0
 sectors=0
+isXpart=1
 unit=MiB
 force=0
 verbose=0
@@ -22,7 +23,7 @@ cat <<EOF
     -d|--device: the device to operate
 actions:
     -I|--info, get disk info.
-    -o|--create_ptable: create a new msdos partition table, -t
+    -o|--init: create a new msdos partition table,and a whole extended. 
     -n|--new: create a new partition
     -r|--remove: remove a partition,-r1:remove partition #1
 options:
@@ -38,7 +39,7 @@ EOF
 }
 
 #parse option and arguments.
-ARGS=`getopt -o d:Ionr:t:S:E:s:u:fvh --long device:,info,create_ptable,new:,remove:,type:,start:,end:,size:,unit:,force,verbose,help -- "$@"`
+ARGS=`getopt -o d:Ionr:t:S:E:s:u:fvh --long device:,info,init,new:,remove:,type:,start:,end:,size:,unit:,force,verbose,help -- "$@"`
 
 if [ $? != 0 ]; then echo "Terminating...";exit 1;fi
 
@@ -60,7 +61,7 @@ do
 	    action=I
 	    shift
 	    ;;
-	-o|--create_ptable)
+	-o|--init)
 	    action=o
 	    shift
 	    ;;
@@ -123,20 +124,23 @@ if [ -z "$disk" ]; then
 fi
 
 if [ -n "$disk" ]; then
-    #get the partions
-    sectors=`parted $disk unit s p|sed -n '2{s/.* \([0-9]\+\)s/\1/;p}'`
-    partitions=(`parted $disk unit s p|grep '^ [0-9]\+'|sed 's/\([0-9]\+\)s/\1/g'|sort -k2n|awk '{printf("%s %s %s %s %s ", $1,$2,$3,$4,$5)}'`)
-    total=$[${#partitions[@]}/5]
+
+    #check the disk,get partitions info and isXpart.
+    xpart_check $disk
+    if [ $isXpart -eq 0 ];then
+	echo "${disk}'s partitions are not xpart style."
+	echo "you should better xpart init it."
+    fi
 
     case "$action" in
 	I)
 	    get_detail_info $disk $unit
 	    ;;
 	o)
-	    create_partition_table $disk
+	    init_disk $disk
 	    ;;
 	n)
-	    new_partition $disk $type "${start}" "${end}" "$size" $force $verbose
+	    new_partition $disk "${start}" "${end}" "$size" $force $verbose
 	    ;;
 	r)
 	    remove_partition $disk $pnum

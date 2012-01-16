@@ -1,4 +1,5 @@
 #put files not to be commited.
 *~
+test.sh
 #test directory
 test/
