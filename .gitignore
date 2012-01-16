@@ -1,0 +1,4 @@
+#put files not to be commited.
+*~
+#test directory
+test/
