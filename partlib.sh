@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/bin/bash
+
+#import math functions
+. math.sh
 
 #function
 #disk
@@ -41,7 +44,7 @@ local psize=$5
 local force=$6
 local verbose=$7
 local start=0
-local end=$[$sectors-1]
+local end=`expr $sectors - 1`
 local primary_nums=`echo ${partitions[@]}|tr ' ' '\n'|awk 'BEGIN{n=0;}($0=="primary"||$0=="extended"){n++;}END{printf("%d",n);}'`
 local extend_nums=`echo ${partitions[@]}|tr ' ' '\n'|awk 'BEGIN{n=0;}($0=="extended"){n++;}END{printf("%d",n);}'`
 if [ x$primary_nums = x ];then primary_nums=0;fi
@@ -49,7 +52,7 @@ if [ x$extend_nums = x ];then extend_nums=0;fi
 
 pstart0=${pstart0:-$start}
 if [ x$pend0 = x ] && [ x$psize != x ];then
-    pend0=$[$pstart+$psize]
+    pend0=`expr $pstart + $psize`
 else
     pend0=${pend0:-$end}
 fi
@@ -67,25 +70,25 @@ if [ $ptype = l ];then
 	    start=${partitions[$[$i*5+1]]}
 	    end=${partitions[$[$i*5+2]]}
 	    #check global range.
-	    if [ $pstart -lt $[$start+$boot_sectors] ]; then
-		pstart=$[$start+$boot_sectors]
+	    if [ $pstart -lt `expr $start + $boot_sectors` ]; then
+		pstart=`expr $start + $boot_sectors`
 	    fi
 	    if [ $pend -gt $end ]; then
 		pend=$end
 	    fi
 	fi
 	if [ ${partitions[$[$i*5+4]]} = "logical" ];then
-	    start=$[${partitions[$[$i*5+1]]}-$boot_sectors]
-	    end=$[${partitions[$[$i*5+2]]}+$boot_sectors]
+	    start=`expr ${partitions[$[$i*5+1]]} - $boot_sectors`
+	    end=`expr ${partitions[$[$i*5+2]]} + $boot_sectors`
 	    if [ $pstart -lt $start ];then
 		if [ $pend -ge $start ];then
-		    pend=$[$start-1]
+		    pend=`expr $start - 1`
 		fi
 		break
 	    elif [ $pstart -ge $start ] && [ $pstart -le $end ];then
-		pstart=$[$end+1]
+		pstart=`expr $end +1`
 		if [ x$psize != x ];then
-		    pend=$[$pstart+psize]
+		    pend=`expr $pstart + $psize`
 		fi
 	    fi
 	    echo $i,$pstart,$pend
@@ -105,8 +108,8 @@ elif [ $ptype = p ] || [ $ptype = e ];then
 	exit 2
     fi
     #check global range.
-    if [ $pstart -lt $[$start+$boot_sectors] ]; then
-	pstart=$[$start+$boot_sectors]
+    if [ $pstart -lt `expr $start + $boot_sectors` ]; then
+	pstart=`expr $start + $boot_sectors`
     fi
     if [ $pend -gt $end ]; then
 	pend=$end
@@ -118,13 +121,13 @@ elif [ $ptype = p ] || [ $ptype = e ];then
 	    end=${partitions[$[$i*5+2]]}
 	    if [ $pstart -lt $start ];then
 		if [ $pend -ge $start ];then
-		    pend=$[$start-1]
+		    pend=`expr $start - 1`
 		fi
 		break
 	    elif [ $pstart -ge $start ] && [ $pstart -le $end ];then
-		pstart=$[$end+1]
+		pstart=`expr $end + 1`
 		if [ x$psize != x ];then
-		    pend=$[$pstart+psize]
+		    pend=`expr $pstart + $psize`
 		fi
 	    fi
 	fi
@@ -135,9 +138,11 @@ if [ $pend -lt $pstart ];then
     pend=$pstart
 fi
 
-if [ $pend -ge $[$sectors-1] ];then
-    pend=$[$sectors-1]
+if [ $pend -ge `expr $sectors - 1` ];then
+    pend=`expr $sectors - 1`
 fi
+
+if [ 
 
 if ! [ $pstart -eq $pstart0 ] || ! [ $pend -eq $pend0 ];then
     if ! [ $force -eq 1 ];then
