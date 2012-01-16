@@ -10,7 +10,6 @@ declare -a partitions
 boot_sectors=2048
 total=0
 sectors=0
-type=p
 unit=MiB
 force=0
 verbose=0
@@ -128,13 +127,7 @@ if [ -n "$disk" ]; then
     sectors=`parted $disk unit s p|sed -n '2{s/.* \([0-9]\+\)s/\1/;p}'`
     partitions=(`parted $disk unit s p|grep '^ [0-9]\+'|sed 's/\([0-9]\+\)s/\1/g'|sort -k2n|awk '{printf("%s %s %s %s %s ", $1,$2,$3,$4,$5)}'`)
     total=$[${#partitions[@]}/5]
-    #for (( i=0; i<$total; i++));do
-#	for (( j=0; j<5; j++));do
-#	    echo -n "${partions[$[$i*5+$j]]} "
-#	done
-#	echo ""
-#    done
-    #handel actions
+
     case "$action" in
 	I)
 	    get_detail_info $disk $unit
