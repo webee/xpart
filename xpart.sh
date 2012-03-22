@@ -161,10 +161,6 @@ fi
 if [ -z "$disk" ]; then
     disk=$1
 fi
-if [ -z "$disk" ]; then
-    usage
-    exit 1
-fi
 
 if [ -e "$disk" ]; then
     #get the partions
